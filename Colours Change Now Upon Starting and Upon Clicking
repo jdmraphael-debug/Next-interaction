@@ -1,0 +1,135 @@
+using UnityEngine;
+
+[RequireComponent(typeof(MeshRenderer), typeof(Collider), typeof(Rigidbody))]
+public class Shooter : MonoBehaviour
+{
+    private int _frameCounter;
+    private Vector3 _originalScale;
+    private float _pulseTimer;
+
+    // Drop and Oscillation variables
+    private bool _hasLanded;
+    private Vector3 _basePosition;
+    private int _oscillationStep;
+    
+    [SerializeField] private float hoverHeight = 0.5f; // Distance above ground to hover
+    [SerializeField] private float oscillationDistance = 1.0f; // Step height for oscillation
+    [SerializeField] private Transform myTransform;
+    [SerializeField] private MeshRenderer meshRenderer;
+    [SerializeField] private Rigidbody rb;
+
+    void Start()
+    {
+        Debug.Log("Shooter script started!");
+
+        if (myTransform == null)
+            myTransform = transform;
+
+        if (meshRenderer == null)
+            meshRenderer = GetComponent<MeshRenderer>();
+
+        if (rb == null)
+            rb = GetComponent<Rigidbody>();
+
+        // Enable physics gravity initially so the sphere drops to the floor
+        rb.useGravity = true;
+        rb.isKinematic = false;
+
+        _originalScale = myTransform.localScale;
+
+        // Set initial random color
+        SetSphereColor(GetRandomVibrantColor());
+    }
+
+    void Update()
+    {
+        // Smoothly animate the scale pulse over time
+        AnimatePulse();
+    }
+
+    void FixedUpdate()
+    { 
+        // Once landed, perform the fixed step up/down oscillation just above the base layer
+        if (_hasLanded)
+        {
+            _frameCounter++;
+
+            if (_frameCounter % 60 == 0)
+            {
+                _oscillationStep++;
+                
+                // Alternates between 0 (hover position) and 1 (peak position)
+                bool movingUp = (_oscillationStep % 2 == 1);
+                
+                Vector3 targetPos = _basePosition + new Vector3(0, movingUp ? hoverHeight + oscillationDistance : hoverHeight, 0);
+                rb.MovePosition(targetPos);
+
+                Debug.Log($"Oscillating: {(movingUp ? "Up" : "Down")}");
+            }
+        }
+    } 
+
+    // Detects when the sphere hits the floor/base layer
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (!_hasLanded)
+        {
+            _hasLanded = true;
+
+            // Switch to Kinematic mode so gravity no longer pulls it down
+            rb.useGravity = false;
+            rb.isKinematic = true;
+
+            // Save the ground position as the base reference
+            _basePosition = rb.position;
+            
+            // Set initial hover position slightly above ground
+            rb.MovePosition(_basePosition + Vector3.up * hoverHeight);
+
+            Debug.Log("Landed on base layer! Starting oscillation.");
+        }
+    }
+
+    private void OnMouseDown()
+    {
+        // 1. Assign a new random color
+        SetSphereColor(GetRandomVibrantColor());
+
+        // 2. Trigger the pulse squish animation
+        _pulseTimer = 1f;
+
+        Debug.Log("Clicked! Sphere updated with new random color and pulse effect.");
+    }
+
+    private Color GetRandomVibrantColor()
+    {
+        return Random.ColorHSV(0f, 1f, 0.8f, 1f, 0.8f, 1f);
+    }
+
+    private void SetSphereColor(Color color)
+    {
+        if (meshRenderer == null) return;
+
+        Material mat = meshRenderer.material;
+        mat.color = color;
+
+        if (mat.HasProperty("_BaseColor"))
+        {
+            mat.SetColor("_BaseColor", color);
+        }
+    }
+
+    private void AnimatePulse()
+    {
+        if (_pulseTimer > 0f)
+        {
+            _pulseTimer -= Time.deltaTime * 5f;
+            float scaleMultiplier = 1f + (Mathf.Sin(_pulseTimer * Mathf.PI) * 0.25f);
+            myTransform.localScale = _originalScale * scaleMultiplier;
+        }
+        else if (myTransform.localScale != _originalScale)
+        {
+            myTransform.localScale = _originalScale;
+        }
+    }
+}
